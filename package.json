@@ -1,7 +1,7 @@
 {
   "name": "vscode-smart-panel",
   "displayName": "Smart Panel",
-  "description": "Automatically maximizes the bottom panel when there are no open editor tabs",
+  "description": "Intelligently manages VS Code's bottom panel (Terminal/Problems/Output) based on editor state to maximize workspace efficiency",
   "version": "0.0.1",
   "publisher": "neowang",
   "repository": {
@@ -24,7 +24,16 @@
     "terminal",
     "auto",
     "maximize",
-    "productivity"
+    "productivity",
+    "workspace",
+    "automation",
+    "ui",
+    "layout",
+    "bottom-panel",
+    "problems",
+    "output",
+    "debug",
+    "efficiency"
   ],
   "activationEvents": [
     "onStartupFinished"

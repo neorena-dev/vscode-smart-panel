@@ -1,77 +1,138 @@
 import * as vscode from 'vscode';
 
+// Constants for timeout values
+const EDITOR_SETTLE_DELAY = 100;
+const WORKSPACE_LOAD_DELAY = 500;
+
+// Extension state
 let isPanelMaximized = false;
+let isOperationInProgress = false;
+let debounceTimer: NodeJS.Timeout | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Smart Panel extension is now active!');
 
+    // Enhanced error handling for VS Code commands with operation locking
+    const executeCommand = async (command: string, errorMessage: string): Promise<boolean> => {
+        if (isOperationInProgress) {
+            console.log('Smart Panel: Operation already in progress, skipping');
+            return false;
+        }
+        
+        isOperationInProgress = true;
+        try {
+            await vscode.commands.executeCommand(command);
+            console.log(`Smart Panel: Successfully executed command: ${command}`);
+            return true;
+        } catch (error) {
+            console.error(`Smart Panel: ${errorMessage}:`, error);
+            vscode.window.showWarningMessage(`Smart Panel: ${errorMessage}`);
+            return false;
+        } finally {
+            // Release the lock after a short delay to prevent immediate re-triggering
+            setTimeout(() => {
+                isOperationInProgress = false;
+                console.log('Smart Panel: Operation lock released');
+            }, 150);
+        }
+    };
+
+
+    // Debounced handler to prevent rapid firing
+    const debouncedHandleChange = () => {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+        
+        // Get debounce delay from user configuration
+        const config = vscode.workspace.getConfiguration('smartPanel');
+        const delay = config.get('debounceDelay', 50);
+        
+        debounceTimer = setTimeout(() => {
+            handleEditorOrTabChange();
+        }, delay);
+    };
+
     // Centralized handler for state changes from various VS Code events
-    const handleEditorOrTabChange = () => {
+    const handleEditorOrTabChange = async () => {
+        // Skip if operation is in progress to prevent loops
+        if (isOperationInProgress) {
+            console.log('Smart Panel: Skipping handler - operation in progress');
+            return;
+        }
+
         const config = vscode.workspace.getConfiguration('smartPanel');
         const enableAutoMaximize = config.get('enableAutoMaximize', true);
         const editorOpenBehavior = config.get<'normal' | 'hidden'>('editorOpenBehavior', 'normal');
 
         if (!enableAutoMaximize) {
+            console.log('Smart Panel: Auto-maximize disabled');
             return;
         }
 
-        const visibleEditorsCount = vscode.window.visibleTextEditors.length;
+        // Simple tab detection - just count all tabs
         const totalTabs = vscode.window.tabGroups.all.reduce((sum, g) => sum + g.tabs.length, 0);
-        const hasAnyEditorOrTab = visibleEditorsCount > 0 || totalTabs > 0;
+        const hasContent = totalTabs > 0;
 
-        if (!hasAnyEditorOrTab) {
-            // No editors or tabs open - maximize panel
+        // Simple debug logging
+        console.log(`Smart Panel: totalTabs=${totalTabs}, hasContent=${hasContent}, isPanelMaximized=${isPanelMaximized}, operationInProgress=${isOperationInProgress}`);
+
+        if (!hasContent) {
+            // No tabs open - maximize panel
             if (!isPanelMaximized) {
-                vscode.commands.executeCommand('workbench.action.toggleMaximizedPanel');
-                isPanelMaximized = true;
-                console.log('Smart Panel: Maximized panel (no editors/tabs open)');
+                const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to maximize panel');
+                if (success) {
+                    isPanelMaximized = true;
+                    console.log('Smart Panel: Maximized panel (no tabs)');
+                }
             }
         } else {
-            // An editor/tab is present - handle based on configured behavior
+            // Tabs are open - restore/hide panel based on behavior
             if (isPanelMaximized) {
                 if (editorOpenBehavior === 'hidden') {
-                    vscode.commands.executeCommand('workbench.action.closePanel');
-                    isPanelMaximized = false;
-                    console.log('Smart Panel: Closed panel (editor/tab opened)');
+                    const success = await executeCommand('workbench.action.closePanel', 'Failed to close panel');
+                    if (success) {
+                        isPanelMaximized = false;
+                        console.log('Smart Panel: Closed panel (tabs opened)');
+                    }
                 } else {
-                    vscode.commands.executeCommand('workbench.action.toggleMaximizedPanel');
-                    isPanelMaximized = false;
-                    console.log('Smart Panel: Restored panel to normal size (editor/tab opened)');
+                    const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to restore panel');
+                    if (success) {
+                        isPanelMaximized = false;
+                        console.log('Smart Panel: Restored panel (tabs opened)');
+                    }
                 }
             }
         }
     };
 
-    // Monitor visible text editor changes
-    const editorChangeDisposable = vscode.window.onDidChangeVisibleTextEditors(() => {
-        handleEditorOrTabChange();
-    });
-
-    // Monitor tab changes to detect file opens while panel is maximized
+    // Monitor tab changes - this is the main event we care about
     const tabsChangeDisposable = vscode.window.tabGroups.onDidChangeTabs(() => {
-        handleEditorOrTabChange();
+        debouncedHandleChange();
     });
 
-    // Monitor active editor changes to handle edge cases
-    const activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor(() => {
-        // Small delay to ensure editor state is settled
-        setTimeout(() => handleEditorOrTabChange(), 100);
-    });
-
-    // Add commands for manual control
-    const maximizePanelCommand = vscode.commands.registerCommand('smartPanel.maximizePanel', () => {
+    // Add commands for manual control with enhanced error handling
+    const maximizePanelCommand = vscode.commands.registerCommand('smartPanel.maximizePanel', async () => {
         if (!isPanelMaximized) {
-            vscode.commands.executeCommand('workbench.action.toggleMaximizedPanel');
-            isPanelMaximized = true;
-            vscode.window.showInformationMessage('Smart Panel: Panel maximized');
+            const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually maximize panel');
+            if (success) {
+                isPanelMaximized = true;
+                vscode.window.showInformationMessage('Smart Panel: Panel maximized');
+            }
+        } else {
+            vscode.window.showInformationMessage('Smart Panel: Panel is already maximized');
         }
     });
 
-    const restorePanelCommand = vscode.commands.registerCommand('smartPanel.restorePanel', () => {
+    const restorePanelCommand = vscode.commands.registerCommand('smartPanel.restorePanel', async () => {
         if (isPanelMaximized) {
-            vscode.commands.executeCommand('workbench.action.toggleMaximizedPanel');
-            isPanelMaximized = false;
-            vscode.window.showInformationMessage('Smart Panel: Panel restored');
+            const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually restore panel');
+            if (success) {
+                isPanelMaximized = false;
+                vscode.window.showInformationMessage('Smart Panel: Panel restored');
+            }
+        } else {
+            vscode.window.showInformationMessage('Smart Panel: Panel is already in normal size');
         }
     });
 
@@ -86,20 +147,29 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register all disposables
     context.subscriptions.push(
-        editorChangeDisposable,
         tabsChangeDisposable,
-        activeEditorDisposable,
         maximizePanelCommand,
         restorePanelCommand,
         toggleAutoCommand
     );
 
-    // Initialize state on activation
+    // Initialize state on activation with debouncing
     setTimeout(() => {
-        handleEditorOrTabChange();
-    }, 500); // Delay to ensure workspace is fully loaded
+        console.log('Smart Panel: Initializing extension state');
+        debouncedHandleChange();
+    }, WORKSPACE_LOAD_DELAY); // Delay to ensure workspace is fully loaded
 }
 
 export function deactivate() {
     console.log('Smart Panel extension is now inactive');
+    
+    // Clean up timers
+    if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = undefined;
+    }
+    
+    // Reset state
+    isOperationInProgress = false;
+    isPanelMaximized = false;
 }

@@ -2,7 +2,7 @@
   "name": "vscode-smart-panel",
   "displayName": "Smart Panel",
   "description": "Intelligently manages VS Code's bottom panel (Terminal/Problems/Output) based on editor state to maximize workspace efficiency",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "neowang",
   "repository": {
     "type": "git",
@@ -75,6 +75,12 @@
           ],
           "default": "normal",
           "description": "How to handle the panel when an editor tab is opened"
+        },
+        "smartPanel.debounceDelay": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "description": "Delay in milliseconds for debouncing panel state changes. Lower values respond faster, higher values provide more stability"
         }
       }
     }

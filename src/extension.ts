@@ -108,12 +108,8 @@ export function activate(context: vscode.ExtensionContext) {
             if (targetState === 'maximized') {
                 // Target: Maximized panel
                 if (currentPanelState === 'hidden') {
-                    // Hidden → Maximized: Show panel first, then maximize
-                    const showSuccess = await executeCommand('workbench.action.togglePanel', 'Failed to show panel');
-                    if (showSuccess) {
-                        updatePanelState('normal', 'shown from hidden');
-                        const maxSuccess = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to maximize panel', 'maximized');
-                    }
+                    // Hidden → Maximized: Use single command (VS Code handles show + maximize)
+                    const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to maximize panel from hidden', 'maximized');
                 } else if (currentPanelState === 'normal') {
                     // Normal → Maximized: Just maximize
                     const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to maximize panel', 'maximized');
@@ -153,14 +149,10 @@ export function activate(context: vscode.ExtensionContext) {
         }
         
         if (currentPanelState === 'hidden') {
-            // Hidden → Maximized: Show panel first, then maximize
-            const showSuccess = await executeCommand('workbench.action.togglePanel', 'Failed to show panel for maximization');
-            if (showSuccess) {
-                updatePanelState('normal', 'manual show before maximize');
-                const maxSuccess = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually maximize panel', 'maximized');
-                if (maxSuccess) {
-                    vscode.window.showInformationMessage('Smart Panel: Panel maximized');
-                }
+            // Hidden → Maximized: Use single command (VS Code handles show + maximize)
+            const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually maximize panel from hidden', 'maximized');
+            if (success) {
+                vscode.window.showInformationMessage('Smart Panel: Panel maximized');
             }
         } else if (currentPanelState === 'normal') {
             // Normal → Maximized: Just maximize

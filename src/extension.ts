@@ -4,16 +4,24 @@ import * as vscode from 'vscode';
 const EDITOR_SETTLE_DELAY = 100;
 const WORKSPACE_LOAD_DELAY = 500;
 
-// Extension state
-let isPanelMaximized = false;
+// Extension state management
+type PanelState = 'hidden' | 'normal' | 'maximized';
+let currentPanelState: PanelState = 'normal';
 let isOperationInProgress = false;
 let debounceTimer: NodeJS.Timeout | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Smart Panel extension is now active!');
 
-    // Enhanced error handling for VS Code commands with operation locking
-    const executeCommand = async (command: string, errorMessage: string): Promise<boolean> => {
+    // State management functions
+    const updatePanelState = (newState: PanelState, reason: string) => {
+        const oldState = currentPanelState;
+        currentPanelState = newState;
+        console.log(`Smart Panel: State changed from ${oldState} → ${newState} (${reason})`);
+    };
+
+    // Enhanced error handling for VS Code commands with state tracking
+    const executeCommand = async (command: string, errorMessage: string, expectedState?: PanelState): Promise<boolean> => {
         if (isOperationInProgress) {
             console.log('Smart Panel: Operation already in progress, skipping');
             return false;
@@ -23,6 +31,12 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             await vscode.commands.executeCommand(command);
             console.log(`Smart Panel: Successfully executed command: ${command}`);
+            
+            // Update state based on the command executed
+            if (expectedState) {
+                updatePanelState(expectedState, `after ${command}`);
+            }
+            
             return true;
         } catch (error) {
             console.error(`Smart Panel: ${errorMessage}:`, error);
@@ -74,35 +88,53 @@ export function activate(context: vscode.ExtensionContext) {
         const totalTabs = vscode.window.tabGroups.all.reduce((sum, g) => sum + g.tabs.length, 0);
         const hasContent = totalTabs > 0;
 
-        // Simple debug logging
-        console.log(`Smart Panel: totalTabs=${totalTabs}, hasContent=${hasContent}, isPanelMaximized=${isPanelMaximized}, operationInProgress=${isOperationInProgress}`);
+        // Enhanced debug logging with state information
+        console.log(`Smart Panel: totalTabs=${totalTabs}, hasContent=${hasContent}, currentState=${currentPanelState}, operationInProgress=${isOperationInProgress}`);
 
+        // Determine target state based on content and user preferences
+        let targetState: PanelState;
         if (!hasContent) {
-            // No tabs open - maximize panel
-            if (!isPanelMaximized) {
-                const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to maximize panel');
-                if (success) {
-                    isPanelMaximized = true;
-                    console.log('Smart Panel: Maximized panel (no tabs)');
+            targetState = 'maximized';
+        } else {
+            targetState = editorOpenBehavior === 'hidden' ? 'hidden' : 'normal';
+        }
+
+        console.log(`Smart Panel: Target state: ${targetState}, Current state: ${currentPanelState}`);
+
+        // Only execute commands if state change is needed
+        if (currentPanelState !== targetState) {
+            console.log(`Smart Panel: State change required: ${currentPanelState} → ${targetState}`);
+            
+            if (targetState === 'maximized') {
+                // Target: Maximized panel
+                if (currentPanelState === 'hidden') {
+                    // Hidden → Maximized: Show panel first, then maximize
+                    const showSuccess = await executeCommand('workbench.action.togglePanel', 'Failed to show panel');
+                    if (showSuccess) {
+                        updatePanelState('normal', 'shown from hidden');
+                        const maxSuccess = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to maximize panel', 'maximized');
+                    }
+                } else if (currentPanelState === 'normal') {
+                    // Normal → Maximized: Just maximize
+                    const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to maximize panel', 'maximized');
+                }
+            } else if (targetState === 'hidden') {
+                // Target: Hidden panel
+                if (currentPanelState !== 'hidden') {
+                    const success = await executeCommand('workbench.action.closePanel', 'Failed to close panel', 'hidden');
+                }
+            } else if (targetState === 'normal') {
+                // Target: Normal panel
+                if (currentPanelState === 'hidden') {
+                    // Hidden → Normal: Show panel
+                    const success = await executeCommand('workbench.action.togglePanel', 'Failed to show panel', 'normal');
+                } else if (currentPanelState === 'maximized') {
+                    // Maximized → Normal: Restore panel
+                    const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to restore panel', 'normal');
                 }
             }
         } else {
-            // Tabs are open - restore/hide panel based on behavior
-            if (isPanelMaximized) {
-                if (editorOpenBehavior === 'hidden') {
-                    const success = await executeCommand('workbench.action.closePanel', 'Failed to close panel');
-                    if (success) {
-                        isPanelMaximized = false;
-                        console.log('Smart Panel: Closed panel (tabs opened)');
-                    }
-                } else {
-                    const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to restore panel');
-                    if (success) {
-                        isPanelMaximized = false;
-                        console.log('Smart Panel: Restored panel (tabs opened)');
-                    }
-                }
-            }
+            console.log(`Smart Panel: No action needed - already in target state: ${targetState}`);
         }
     };
 
@@ -111,28 +143,54 @@ export function activate(context: vscode.ExtensionContext) {
         debouncedHandleChange();
     });
 
-    // Add commands for manual control with enhanced error handling
+    // Add commands for manual control using state-aware logic
     const maximizePanelCommand = vscode.commands.registerCommand('smartPanel.maximizePanel', async () => {
-        if (!isPanelMaximized) {
-            const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually maximize panel');
+        console.log(`Smart Panel: Manual maximize requested, current state: ${currentPanelState}`);
+        
+        if (currentPanelState === 'maximized') {
+            vscode.window.showInformationMessage('Smart Panel: Panel is already maximized');
+            return;
+        }
+        
+        if (currentPanelState === 'hidden') {
+            // Hidden → Maximized: Show panel first, then maximize
+            const showSuccess = await executeCommand('workbench.action.togglePanel', 'Failed to show panel for maximization');
+            if (showSuccess) {
+                updatePanelState('normal', 'manual show before maximize');
+                const maxSuccess = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually maximize panel', 'maximized');
+                if (maxSuccess) {
+                    vscode.window.showInformationMessage('Smart Panel: Panel maximized');
+                }
+            }
+        } else if (currentPanelState === 'normal') {
+            // Normal → Maximized: Just maximize
+            const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually maximize panel', 'maximized');
             if (success) {
-                isPanelMaximized = true;
                 vscode.window.showInformationMessage('Smart Panel: Panel maximized');
             }
-        } else {
-            vscode.window.showInformationMessage('Smart Panel: Panel is already maximized');
         }
     });
 
     const restorePanelCommand = vscode.commands.registerCommand('smartPanel.restorePanel', async () => {
-        if (isPanelMaximized) {
-            const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually restore panel');
-            if (success) {
-                isPanelMaximized = false;
-                vscode.window.showInformationMessage('Smart Panel: Panel restored');
-            }
-        } else {
+        console.log(`Smart Panel: Manual restore requested, current state: ${currentPanelState}`);
+        
+        if (currentPanelState === 'normal') {
             vscode.window.showInformationMessage('Smart Panel: Panel is already in normal size');
+            return;
+        }
+        
+        if (currentPanelState === 'hidden') {
+            // Hidden → Normal: Show panel
+            const success = await executeCommand('workbench.action.togglePanel', 'Failed to show panel', 'normal');
+            if (success) {
+                vscode.window.showInformationMessage('Smart Panel: Panel restored to normal size');
+            }
+        } else if (currentPanelState === 'maximized') {
+            // Maximized → Normal: Restore panel
+            const success = await executeCommand('workbench.action.toggleMaximizedPanel', 'Failed to manually restore panel', 'normal');
+            if (success) {
+                vscode.window.showInformationMessage('Smart Panel: Panel restored to normal size');
+            }
         }
     });
 
@@ -171,5 +229,5 @@ export function deactivate() {
     
     // Reset state
     isOperationInProgress = false;
-    isPanelMaximized = false;
+    currentPanelState = 'normal';
 }

@@ -5,6 +5,13 @@ All notable changes to the Smart Panel extension will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-01-05
+
+### Changed
+- **Updated Extension Icon**: Improved visual design with enhanced clarity and professional appearance
+- **Brand Consistency**: Refined icon styling to better represent Smart Panel's intelligent automation features
+- **Visual Polish**: Optimized icon for better display across different VS Code themes and scales
+
 ## [1.0.0] - 2025-01-05
 
 ### Added

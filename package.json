@@ -2,7 +2,7 @@
   "name": "vscode-smart-panel",
   "displayName": "Smart Panel",
   "description": "Intelligently manages VS Code's bottom panel (Terminal/Problems/Output) based on editor state to maximize workspace efficiency",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "neowang",
   "icon": "icon.png",
   "repository": {

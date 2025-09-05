@@ -4,6 +4,7 @@
   "description": "Intelligently manages VS Code's bottom panel (Terminal/Problems/Output) based on editor state to maximize workspace efficiency",
   "version": "1.0.0",
   "publisher": "neowang",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/neorena-dev/vscode-smart-panel.git"

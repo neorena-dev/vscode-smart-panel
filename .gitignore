@@ -6,7 +6,6 @@ dist
 
 # Dependencies
 node_modules
-package-lock.json
 
 # VS Code extension testing
 .vscode-test/
@@ -71,3 +70,4 @@ temp/
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
+package-lock.json

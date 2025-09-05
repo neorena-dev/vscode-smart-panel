@@ -4,33 +4,82 @@ import * as vscode from 'vscode';
 const EDITOR_SETTLE_DELAY = 100;
 const WORKSPACE_LOAD_DELAY = 500;
 
+// Centralized logging system
+class SmartPanelLogger {
+    private outputChannel: vscode.OutputChannel;
+
+    constructor() {
+        this.outputChannel = vscode.window.createOutputChannel('Smart Panel');
+    }
+
+    private formatMessage(level: string, message: string): string {
+        const timestamp = new Date().toLocaleTimeString();
+        return `[${timestamp}] [${level}] ${message}`;
+    }
+
+    info(message: string) {
+        const formatted = this.formatMessage('INFO', message);
+        this.outputChannel.appendLine(formatted);
+    }
+
+    debug(message: string) {
+        const formatted = this.formatMessage('DEBUG', message);
+        this.outputChannel.appendLine(formatted);
+    }
+
+    error(message: string, error?: any) {
+        const formatted = this.formatMessage('ERROR', message);
+        if (error) {
+            this.outputChannel.appendLine(`${formatted}: ${error}`);
+        } else {
+            this.outputChannel.appendLine(formatted);
+        }
+    }
+
+    warn(message: string) {
+        const formatted = this.formatMessage('WARN', message);
+        this.outputChannel.appendLine(formatted);
+    }
+
+    show() {
+        this.outputChannel.show(true);
+    }
+
+    dispose() {
+        this.outputChannel.dispose();
+    }
+}
+
 // Extension state management
 type PanelState = 'hidden' | 'normal' | 'maximized';
 let currentPanelState: PanelState = 'normal';
 let isOperationInProgress = false;
 let debounceTimer: NodeJS.Timeout | undefined;
+let logger: SmartPanelLogger;
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Smart Panel extension is now active!');
+    // Initialize logger
+    logger = new SmartPanelLogger();
+    logger.info('Smart Panel extension is now active!');
 
     // State management functions
     const updatePanelState = (newState: PanelState, reason: string) => {
         const oldState = currentPanelState;
         currentPanelState = newState;
-        console.log(`Smart Panel: State changed from ${oldState} → ${newState} (${reason})`);
+        logger.debug(`State changed from ${oldState} → ${newState} (${reason})`);
     };
 
     // Enhanced error handling for VS Code commands with state tracking
     const executeCommand = async (command: string, errorMessage: string, expectedState?: PanelState): Promise<boolean> => {
         if (isOperationInProgress) {
-            console.log('Smart Panel: Operation already in progress, skipping');
+            logger.debug('Operation already in progress, skipping');
             return false;
         }
         
         isOperationInProgress = true;
         try {
             await vscode.commands.executeCommand(command);
-            console.log(`Smart Panel: Successfully executed command: ${command}`);
+            logger.debug(`Successfully executed command: ${command}`);
             
             // Update state based on the command executed
             if (expectedState) {
@@ -39,14 +88,14 @@ export function activate(context: vscode.ExtensionContext) {
             
             return true;
         } catch (error) {
-            console.error(`Smart Panel: ${errorMessage}:`, error);
+            logger.error(errorMessage, error);
             vscode.window.showWarningMessage(`Smart Panel: ${errorMessage}`);
             return false;
         } finally {
             // Release the lock after a short delay to prevent immediate re-triggering
             setTimeout(() => {
                 isOperationInProgress = false;
-                console.log('Smart Panel: Operation lock released');
+                logger.debug('Operation lock released');
             }, 150);
         }
     };
@@ -71,7 +120,7 @@ export function activate(context: vscode.ExtensionContext) {
     const handleEditorOrTabChange = async () => {
         // Skip if operation is in progress to prevent loops
         if (isOperationInProgress) {
-            console.log('Smart Panel: Skipping handler - operation in progress');
+            logger.debug('Skipping handler - operation in progress');
             return;
         }
 
@@ -80,7 +129,7 @@ export function activate(context: vscode.ExtensionContext) {
         const editorOpenBehavior = config.get<'normal' | 'hidden'>('editorOpenBehavior', 'normal');
 
         if (!enableAutoMaximize) {
-            console.log('Smart Panel: Auto-maximize disabled');
+            logger.info('Auto-maximize disabled');
             return;
         }
 
@@ -89,7 +138,7 @@ export function activate(context: vscode.ExtensionContext) {
         const hasContent = totalTabs > 0;
 
         // Enhanced debug logging with state information
-        console.log(`Smart Panel: totalTabs=${totalTabs}, hasContent=${hasContent}, currentState=${currentPanelState}, operationInProgress=${isOperationInProgress}`);
+        logger.debug(`totalTabs=${totalTabs}, hasContent=${hasContent}, currentState=${currentPanelState}, operationInProgress=${isOperationInProgress}`);
 
         // Determine target state based on content and user preferences
         let targetState: PanelState;
@@ -99,11 +148,11 @@ export function activate(context: vscode.ExtensionContext) {
             targetState = editorOpenBehavior === 'hidden' ? 'hidden' : 'normal';
         }
 
-        console.log(`Smart Panel: Target state: ${targetState}, Current state: ${currentPanelState}`);
+        logger.debug(`Target state: ${targetState}, Current state: ${currentPanelState}`);
 
         // Only execute commands if state change is needed
         if (currentPanelState !== targetState) {
-            console.log(`Smart Panel: State change required: ${currentPanelState} → ${targetState}`);
+            logger.info(`State change required: ${currentPanelState} → ${targetState}`);
             
             if (targetState === 'maximized') {
                 // Target: Maximized panel
@@ -130,7 +179,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             }
         } else {
-            console.log(`Smart Panel: No action needed - already in target state: ${targetState}`);
+            logger.debug(`No action needed - already in target state: ${targetState}`);
         }
     };
 
@@ -141,7 +190,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Add commands for manual control using state-aware logic
     const maximizePanelCommand = vscode.commands.registerCommand('smartPanel.maximizePanel', async () => {
-        console.log(`Smart Panel: Manual maximize requested, current state: ${currentPanelState}`);
+        logger.info(`Manual maximize requested, current state: ${currentPanelState}`);
         
         if (currentPanelState === 'maximized') {
             vscode.window.showInformationMessage('Smart Panel: Panel is already maximized');
@@ -164,7 +213,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const restorePanelCommand = vscode.commands.registerCommand('smartPanel.restorePanel', async () => {
-        console.log(`Smart Panel: Manual restore requested, current state: ${currentPanelState}`);
+        logger.info(`Manual restore requested, current state: ${currentPanelState}`);
         
         if (currentPanelState === 'normal') {
             vscode.window.showInformationMessage('Smart Panel: Panel is already in normal size');
@@ -200,18 +249,22 @@ export function activate(context: vscode.ExtensionContext) {
         tabsChangeDisposable,
         maximizePanelCommand,
         restorePanelCommand,
-        toggleAutoCommand
+        toggleAutoCommand,
+        logger
     );
 
     // Initialize state on activation with debouncing
     setTimeout(() => {
-        console.log('Smart Panel: Initializing extension state');
+        logger.info('Initializing extension state');
         debouncedHandleChange();
     }, WORKSPACE_LOAD_DELAY); // Delay to ensure workspace is fully loaded
 }
 
 export function deactivate() {
-    console.log('Smart Panel extension is now inactive');
+    if (logger) {
+        logger.info('Smart Panel extension is now inactive');
+        logger.dispose();
+    }
     
     // Clean up timers
     if (debounceTimer) {

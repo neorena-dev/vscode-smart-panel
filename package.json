@@ -1,0 +1,112 @@
+{
+  "name": "vscode-smart-panel",
+  "displayName": "Smart Panel",
+  "description": "Intelligently manages VS Code's bottom panel (Terminal/Problems/Output) based on editor state to maximize workspace efficiency",
+  "version": "1.0.1",
+  "publisher": "neowang",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neorena-dev/vscode-smart-panel.git"
+  },
+  "homepage": "https://github.com/neorena-dev/vscode-smart-panel#readme",
+  "bugs": {
+    "url": "https://github.com/neorena-dev/vscode-smart-panel/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "panel",
+    "terminal",
+    "auto",
+    "maximize",
+    "productivity",
+    "workspace",
+    "automation",
+    "ui",
+    "layout",
+    "bottom-panel",
+    "problems",
+    "output",
+    "debug",
+    "efficiency"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "smartPanel.maximizePanel",
+        "title": "Maximize Panel",
+        "category": "Smart Panel"
+      },
+      {
+        "command": "smartPanel.restorePanel", 
+        "title": "Restore Panel",
+        "category": "Smart Panel"
+      },
+      {
+        "command": "smartPanel.toggleAutoMaximize",
+        "title": "Toggle Auto-Maximize",
+        "category": "Smart Panel"
+      }
+    ],
+    "configuration": {
+      "title": "Smart Panel",
+      "properties": {
+        "smartPanel.enableAutoMaximize": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic panel maximization when no editors are open"
+        },
+        "smartPanel.editorOpenBehavior": {
+          "type": "string",
+          "enum": ["normal", "hidden"],
+          "enumItemLabels": ["Restore to Normal Size", "Hide Completely"],
+          "enumDescriptions": [
+            "Restore the panel to its normal size when editors open",
+            "Hide the panel completely when editors open"
+          ],
+          "default": "normal",
+          "description": "How to handle the panel when an editor tab is opened"
+        },
+        "smartPanel.debounceDelay": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "description": "Delay in milliseconds for debouncing panel state changes. Lower values respond faster, higher values provide more stability"
+        },
+        "smartPanel.logLevel": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug"],
+          "enumItemLabels": ["Error Only", "Warnings & Errors", "Info & Above", "All Messages"],
+          "enumDescriptions": [
+            "Show only error messages (recommended)",
+            "Show warnings and errors",
+            "Show info, warnings and errors",
+            "Show all debug messages (for development)"
+          ],
+          "default": "error",
+          "description": "Control the verbosity of Smart Panel logging output"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "18.x",
+    "typescript": "^4.9.4"
+  }
+}

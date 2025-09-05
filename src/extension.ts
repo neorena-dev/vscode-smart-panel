@@ -5,11 +5,22 @@ const EDITOR_SETTLE_DELAY = 100;
 const WORKSPACE_LOAD_DELAY = 500;
 
 // Centralized logging system
+type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+
 class SmartPanelLogger {
     private outputChannel: vscode.OutputChannel;
+    private logLevels: LogLevel[] = ['error', 'warn', 'info', 'debug'];
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Smart Panel');
+    }
+
+    private shouldLog(level: LogLevel): boolean {
+        const config = vscode.workspace.getConfiguration('smartPanel');
+        const currentLevel = config.get<LogLevel>('logLevel', 'error');
+        const currentLevelIndex = this.logLevels.indexOf(currentLevel);
+        const messageLevelIndex = this.logLevels.indexOf(level);
+        return messageLevelIndex <= currentLevelIndex;
     }
 
     private formatMessage(level: string, message: string): string {
@@ -18,27 +29,35 @@ class SmartPanelLogger {
     }
 
     info(message: string) {
-        const formatted = this.formatMessage('INFO', message);
-        this.outputChannel.appendLine(formatted);
-    }
-
-    debug(message: string) {
-        const formatted = this.formatMessage('DEBUG', message);
-        this.outputChannel.appendLine(formatted);
-    }
-
-    error(message: string, error?: any) {
-        const formatted = this.formatMessage('ERROR', message);
-        if (error) {
-            this.outputChannel.appendLine(`${formatted}: ${error}`);
-        } else {
+        if (this.shouldLog('info')) {
+            const formatted = this.formatMessage('INFO', message);
             this.outputChannel.appendLine(formatted);
         }
     }
 
+    debug(message: string) {
+        if (this.shouldLog('debug')) {
+            const formatted = this.formatMessage('DEBUG', message);
+            this.outputChannel.appendLine(formatted);
+        }
+    }
+
+    error(message: string, error?: any) {
+        if (this.shouldLog('error')) {
+            const formatted = this.formatMessage('ERROR', message);
+            if (error) {
+                this.outputChannel.appendLine(`${formatted}: ${error}`);
+            } else {
+                this.outputChannel.appendLine(formatted);
+            }
+        }
+    }
+
     warn(message: string) {
-        const formatted = this.formatMessage('WARN', message);
-        this.outputChannel.appendLine(formatted);
+        if (this.shouldLog('warn')) {
+            const formatted = this.formatMessage('WARN', message);
+            this.outputChannel.appendLine(formatted);
+        }
     }
 
     show() {

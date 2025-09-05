@@ -81,6 +81,19 @@
           "default": 50,
           "minimum": 0,
           "description": "Delay in milliseconds for debouncing panel state changes. Lower values respond faster, higher values provide more stability"
+        },
+        "smartPanel.logLevel": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug"],
+          "enumItemLabels": ["Error Only", "Warnings & Errors", "Info & Above", "All Messages"],
+          "enumDescriptions": [
+            "Show only error messages (recommended)",
+            "Show warnings and errors",
+            "Show info, warnings and errors",
+            "Show all debug messages (for development)"
+          ],
+          "default": "error",
+          "description": "Control the verbosity of Smart Panel logging output"
         }
       }
     }
